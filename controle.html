@@ -1,317 +1,220 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>ContaAi - Controle de Gastos</title>
-  <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #e0ecf8, #c0dfff, #d2eafc);
-      background-attachment: fixed;
-      min-height: 100vh;
-    }
-
-    .container {
-      max-width: 800px;
-      margin: 40px auto;
-      background: white;
-      border-radius: 15px;
-      padding: 30px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-    }
-
-    h1 {
-      text-align: center;
-      color: #3897f0;
-    }
-
-    .form-control {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-
-    input {
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      flex: 1 1 30%;
-      min-width: 150px;
-    }
-
-    button {
-      padding: 10px 20px;
-      border: none;
-      background-color: #3897f0;
-      color: white;
-      font-weight: bold;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: background 0.3s ease;
-    }
-
-    button:hover {
-      background-color: #2a7bdc;
-    }
-
-    .abas {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 20px;
-    }
-
-    .aba {
-      padding: 10px 20px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      background-color: #f4f4f4;
-      cursor: pointer;
-    }
-
-    .aba.ativa {
-      background-color: #3897f0;
-      color: white;
-      font-weight: bold;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-
-    th, td {
-      padding: 12px;
-      border: 1px solid #ccc;
-      text-align: left;
-    }
-
-    .linha-status {
-      font-weight: bold;
-    }
-
-    .status-pago {
-      background-color: #d4edda;
-      color: #155724;
-    }
-
-    .status-pendente {
-      background-color: #fff3cd;
-      color: #856404;
-    }
-
-    .status-vencido {
-      background-color: #f8d7da;
-      color: #721c24;
-    }
-
-    #total {
-      font-size: 1.3em;
-      font-weight: bold;
-      text-align: right;
-      margin-top: 10px;
-    }
-  </style>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDdaYpAZJgzN0Vww9-pSSgjou7OWyuYHZI",
-      authDomain: "contaai0.firebaseapp.com",
-      projectId: "contaai0",
-      storageBucket: "contaai0.firebasestorage.app",
-      messagingSenderId: "841034053224",
-      appId: "1:841034053224:web:078496e98ef804bf79eddd",
-      measurementId: "G-ZDSFPTVCSY"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth();
-    const db = getFirestore(app);
-
-    let usuarioAtual = null;
-    let statusAtual = 'todos';
-
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        usuarioAtual = user.email;
-        await carregarGastos();
-      } else {
-        window.location.href = 'index.html';
-      }
-    });
-
-    async function carregarGastos() {
-      const docRef = doc(db, "gastos", usuarioAtual);
-      const docSnap = await getDoc(docRef);
-      const dados = docSnap.exists() ? docSnap.data().gastos : [];
-      dados.forEach(g => {
-        if (g.status !== 'pago') {
-          g.status = calcularStatus(g);
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Gastos e Dívidas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 20px;
         }
-      });
-      await setDoc(docRef, { gastos: dados });
-      exibirGastosFiltrados(dados);
-    }
-
-    async function adicionarGasto() {
-      const descricao = document.getElementById('descricao').value.trim();
-      const valor = parseFloat(document.getElementById('valor').value);
-      const data = document.getElementById('data').value;
-
-      if (descricao && !isNaN(valor) && data) {
-        const novoGasto = {
-          descricao,
-          valor,
-          data,
-          status: calcularStatus({ data }),
-          dataPagamento: ''
-        };
-        const docRef = doc(db, "gastos", usuarioAtual);
-        const docSnap = await getDoc(docRef);
-        const dados = docSnap.exists() ? docSnap.data().gastos : [];
-        dados.push(novoGasto);
-        await setDoc(docRef, { gastos: dados });
-        limparCampos();
-        carregarGastos();
-      } else {
-        alert('Preencha todos os campos.');
-      }
-    }
-
-    function calcularStatus(gasto) {
-      const hoje = new Date().toISOString().split('T')[0];
-      if (gasto.status === 'pago') return 'pago';
-      return gasto.data < hoje ? 'vencido' : 'pendente';
-    }
-
-    async function exibirGastosFiltrados(gastos) {
-      const tabela = document.getElementById('listaGastos');
-      tabela.innerHTML = '';
-      let filtrados = gastos;
-
-      if (statusAtual !== 'todos') {
-        filtrados = gastos.filter(g => g.status === statusAtual);
-      }
-
-      filtrados.forEach(g => {
-        const linha = tabela.insertRow();
-        linha.className = `linha-status status-${g.status}`;
-        linha.insertCell(0).innerHTML = `<strong>${g.descricao}</strong><br><small>Venc: ${g.data}</small>${g.dataPagamento ? `<br><small>Pago: ${g.dataPagamento}</small>` : ''}`;
-        linha.insertCell(1).textContent = formatarValor(g.valor);
-        linha.insertCell(2).textContent = g.status;
-        const acoes = linha.insertCell(3);
-
-        const btnPagar = document.createElement('button');
-        btnPagar.textContent = '✅ Pago';
-        btnPagar.onclick = () => marcarComoPago(g);
-
-        const btnExcluir = document.createElement('button');
-        btnExcluir.textContent = '🗑️ Excluir';
-        btnExcluir.onclick = () => excluirGasto(g);
-
-        acoes.appendChild(btnPagar);
-        acoes.appendChild(btnExcluir);
-      });
-
-      calcularTotal(filtrados);
-    }
-
-    async function marcarComoPago(gasto) {
-      const dataPagamento = prompt('Digite a data de pagamento (YYYY-MM-DD):');
-      if (!dataPagamento) return;
-      const docRef = doc(db, "gastos", usuarioAtual);
-      const docSnap = await getDoc(docRef);
-      const dados = docSnap.exists() ? docSnap.data().gastos : [];
-      const i = dados.findIndex(g => g.descricao === gasto.descricao && g.valor === gasto.valor && g.data === gasto.data);
-      if (i !== -1) {
-        dados[i].status = 'pago';
-        dados[i].dataPagamento = dataPagamento;
-        await setDoc(docRef, { gastos: dados });
-        carregarGastos();
-      }
-    }
-
-    async function excluirGasto(gasto) {
-      const docRef = doc(db, "gastos", usuarioAtual);
-      const docSnap = await getDoc(docRef);
-      let dados = docSnap.exists() ? docSnap.data().gastos : [];
-      dados = dados.filter(g => !(g.descricao === gasto.descricao && g.valor === gasto.valor && g.data === gasto.data));
-      await setDoc(docRef, { gastos: dados });
-      carregarGastos();
-    }
-
-    function calcularTotal(gastos) {
-      const total = gastos.reduce((soma, g) => soma + g.valor, 0);
-      document.getElementById('total').textContent = `Total: ${formatarValor(total)}`;
-    }
-
-    function formatarValor(valor) {
-      return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    }
-
-    window.filtrarPorStatus = function(status) {
-      statusAtual = status;
-      document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
-      document.querySelectorAll('.aba').forEach(aba => {
-        if (aba.textContent.toLowerCase() === status.replace('_', ' ')) {
-          aba.classList.add('ativa');
+        input, select, button {
+            margin: 5px;
+            padding: 5px;
         }
-      });
-      carregarGastos();
-    }
-
-    function limparCampos() {
-      document.getElementById('descricao').value = '';
-      document.getElementById('valor').value = '';
-      document.getElementById('data').value = '';
-    }
-
-    window.adicionarGasto = adicionarGasto;
-  </script>
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ccc;
+            text-align: left;
+        }
+        .abas {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .aba {
+            padding: 10px 20px;
+            border: 1px solid #ccc;
+            background-color: #f4f4f4;
+            cursor: pointer;
+        }
+        .aba.ativa {
+            background-color: #ddd;
+            font-weight: bold;
+        }
+        .status-pago {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-pendente, .status-pendente {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .status-dentro_prazo {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        .status-vencido {
+            background-color: #f5c6cb !important;
+            color: #721c24 !important;
+        }
+        .linha-status {
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Controle de Gastos e Dívidas</h1>
 
-    <div class="form-control">
-      <input type="text" id="descricao" placeholder="Descrição">
-      <input type="number" id="valor" placeholder="Valor">
-      <input type="date" id="data">
-      <button onclick="adicionarGasto()">Adicionar Gasto</button>
-    </div>
+    <h1>Controle de Gastos e Dívidas</h1>
+    <input type="text" id="descricao" placeholder="Descrição">
+    <input type="number" id="valor" placeholder="Valor">
+    <input type="date" id="data">
+    <button onclick="adicionarGasto()">Adicionar Gasto</button>
 
     <div class="abas">
-      <div class="aba ativa" onclick="filtrarPorStatus('todos')">Todos</div>
-      <div class="aba" onclick="filtrarPorStatus('pago')">Pagos</div>
-      <div class="aba" onclick="filtrarPorStatus('pendente')">Pendentes</div>
-      <div class="aba" onclick="filtrarPorStatus('vencido')">Vencidos</div>
+        <div class="aba ativa" onclick="filtrarPorStatus('todos')">Todos</div>
+        <div class="aba" onclick="filtrarPorStatus('pago')">Pagos</div>
+        <div class="aba" onclick="filtrarPorStatus('pendente')">Pendentes</div>
+        <div class="aba" onclick="filtrarPorStatus('vencido')">Vencidos</div>
+        <div class="aba" onclick="filtrarPorStatus('dentro_prazo')">Dentro do Prazo</div>
     </div>
 
     <table>
-      <thead>
-        <tr>
-          <th>Descrição</th>
-          <th>Valor</th>
-          <th>Status</th>
-          <th>Ação</th>
-        </tr>
-      </thead>
-      <tbody id="listaGastos"></tbody>
+        <thead>
+            <tr>
+                <th>Descrição</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Ação</th>
+            </tr>
+        </thead>
+        <tbody id="listaGastos"></tbody>
     </table>
 
-    <p id="total">Total: R$ 0,00</p>
-  </div>
+    <h3>Total:</h3>
+    <p id="total"></p>
+
+    <script>
+        const formatarValor = valor => new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        }).format(valor);
+
+        let statusAtual = 'todos';
+
+        document.addEventListener('DOMContentLoaded', carregarGastos);
+
+        function carregarGastos() {
+            const gastos = JSON.parse(localStorage.getItem('gastos') || '[]');
+            gastos.forEach(g => g.status = calcularStatusAutomatico(g));
+            localStorage.setItem('gastos', JSON.stringify(gastos));
+            exibirGastosFiltrados(gastos);
+        }
+
+        function adicionarGasto() {
+            const descricao = document.getElementById('descricao').value.trim();
+            const valor = parseFloat(document.getElementById('valor').value);
+            const data = document.getElementById('data').value;
+
+            if (descricao && !isNaN(valor) && data) {
+                const status = 'pendente';
+                const novoGasto = { descricao, valor, data, status, dataPagamento: '' };
+                novoGasto.status = calcularStatusAutomatico(novoGasto);
+                salvarGasto(novoGasto);
+                exibirGastosFiltrados();
+                calcularTotal();
+                document.getElementById('descricao').value = '';
+                document.getElementById('valor').value = '';
+                document.getElementById('data').value = '';
+            } else {
+                alert('Por favor, preencha todos os campos obrigatórios.');
+            }
+        }
+
+        function calcularStatusAutomatico(gasto) {
+            if (gasto.status === 'pago') return 'pago';
+            const hoje = new Date().toISOString().split('T')[0];
+            return gasto.data < hoje ? 'vencido' : 'pendente';
+        }
+
+        function salvarGasto(gasto) {
+            const gastos = JSON.parse(localStorage.getItem('gastos') || '[]');
+            gastos.push(gasto);
+            localStorage.setItem('gastos', JSON.stringify(gastos));
+        }
+
+        function exibirGastosFiltrados(gastos = JSON.parse(localStorage.getItem('gastos') || '[]')) {
+            const tabela = document.getElementById('listaGastos');
+            tabela.innerHTML = '';
+            let filtrados;
+
+            if (statusAtual === 'todos') {
+                filtrados = gastos;
+            } else if (statusAtual === 'pendente') {
+                filtrados = gastos.filter(g => g.status === 'pendente' || g.status === 'pendente');
+            } else {
+                filtrados = gastos.filter(g => g.status === statusAtual);
+            }
+
+            filtrados.forEach(gasto => {
+                const linha = tabela.insertRow();
+                linha.className = `linha-status status-${gasto.status}`;
+                linha.insertCell(0).innerHTML = `<strong>${gasto.descricao}</strong><br><small>Venc: ${gasto.data}</small>${gasto.dataPagamento ? `<br><small>Pago: ${gasto.dataPagamento}</small>` : ''}`;
+                linha.insertCell(1).textContent = formatarValor(gasto.valor);
+                linha.insertCell(2).textContent = gasto.status;
+                const acaoCell = linha.insertCell(3);
+                const botaoExcluir = document.createElement('button');
+                botaoExcluir.textContent = '🗑️ Excluir';
+                botaoExcluir.onclick = () => excluirGasto(gasto);
+
+                const botaoMarcarPago = document.createElement('button');
+                botaoMarcarPago.textContent = '✅ Marcar Pago';
+                botaoMarcarPago.onclick = () => marcarComoPago(gasto);
+
+                acaoCell.appendChild(botaoMarcarPago);
+                acaoCell.appendChild(botaoExcluir);
+            });
+
+            calcularTotal(filtrados);
+        }
+
+        function excluirGasto(gastoParaExcluir) {
+            let gastos = JSON.parse(localStorage.getItem('gastos') || '[]');
+            gastos = gastos.filter(g => !(g.descricao === gastoParaExcluir.descricao && g.valor === gastoParaExcluir.valor && g.data === gastoParaExcluir.data));
+            localStorage.setItem('gastos', JSON.stringify(gastos));
+            exibirGastosFiltrados();
+        }
+
+        function marcarComoPago(gastoParaPagar) {
+            const dataManual = prompt("Digite a data de pagamento (AAAA-MM-DD):");
+            if (!dataManual) return;
+            const gastos = JSON.parse(localStorage.getItem('gastos') || '[]');
+            const index = gastos.findIndex(g => g.descricao === gastoParaPagar.descricao && g.valor === gastoParaPagar.valor && g.data === gastoParaPagar.data);
+            if (index !== -1) {
+                gastos[index].status = 'pago';
+                gastos[index].dataPagamento = dataManual;
+                localStorage.setItem('gastos', JSON.stringify(gastos));
+                exibirGastosFiltrados();
+            }
+        }
+
+        function calcularTotal(gastos = JSON.parse(localStorage.getItem('gastos') || '[]')) {
+            const filtrados = statusAtual === 'todos' ? gastos : gastos.filter(g => {
+                if (statusAtual === 'pendente') return g.status === 'pendente' || g.status === 'pendente';
+                return g.status === statusAtual;
+            });
+            const total = filtrados.reduce((soma, g) => soma + g.valor, 0);
+            document.getElementById('total').textContent = formatarValor(total);
+        }
+
+        function filtrarPorStatus(status) {
+            statusAtual = status;
+            document.querySelectorAll('.aba').forEach(aba => aba.classList.remove('ativa'));
+            const abas = document.querySelectorAll('.aba');
+            const nomes = ['todos', 'pago', 'pendente', 'vencido', 'dentro_prazo'];
+            abas[nomes.indexOf(status)].classList.add('ativa');
+            exibirGastosFiltrados();
+        }
+    </script>
+
 </body>
 </html>
