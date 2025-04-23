@@ -4,11 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ContaAi - Login</title>
+  <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -18,7 +17,6 @@
       align-items: center;
       justify-content: center;
     }
-
     .wrapper {
       display: flex;
       width: 900px;
@@ -28,7 +26,6 @@
       overflow: hidden;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     }
-
     .left-side {
       flex: 1;
       background: #009fff;
@@ -39,20 +36,13 @@
       flex-direction: column;
       position: relative;
     }
-
-    .left-side h1 {
-      font-size: 48px;
-      font-weight: bold;
-      z-index: 1;
-    }
-
+    .left-side h1 { font-size: 48px; font-weight: bold; z-index: 1; }
     .illustration {
       margin-top: 20px;
       width: 80%;
       max-width: 280px;
       z-index: 1;
     }
-
     .right-side {
       flex: 1;
       padding: 60px 40px;
@@ -60,13 +50,11 @@
       flex-direction: column;
       justify-content: center;
     }
-
     .right-side h2 {
       font-size: 28px;
       margin-bottom: 20px;
       color: #0a0a0a;
     }
-
     input {
       padding: 12px;
       margin-bottom: 15px;
@@ -74,7 +62,6 @@
       border-radius: 8px;
       font-size: 16px;
     }
-
     button {
       padding: 12px;
       background-color: #009fff;
@@ -86,31 +73,24 @@
       cursor: pointer;
       transition: background-color 0.3s;
     }
-
-    button:hover {
-      background-color: #007acc;
-    }
-
+    button:hover { background-color: #007acc; }
     .switch {
       margin-top: 15px;
       font-size: 14px;
       color: #333;
     }
-
     .switch a {
       color: #009fff;
       text-decoration: none;
       font-weight: bold;
       cursor: pointer;
     }
-
     @media (max-width: 768px) {
       .wrapper {
         flex-direction: column;
         height: auto;
         width: 90%;
       }
-
       .left-side, .right-side {
         width: 100%;
         padding: 40px 20px;
@@ -137,6 +117,18 @@
   </div>
 
   <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDdaYpAZJgzN0Vww9-pSSgjou7OWyuYHZI",
+      authDomain: "contaai0.firebaseapp.com",
+      projectId: "contaai0",
+      storageBucket: "contaai0.firebasestorage.app",
+      messagingSenderId: "841034053224",
+      appId: "1:841034053224:web:078496e98ef804bf79eddd",
+      measurementId: "G-ZDSFPTVCSY"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
     let modoCadastro = false;
 
     function alternarModo() {
@@ -157,24 +149,20 @@
         return;
       }
 
-      let contas = JSON.parse(localStorage.getItem('contas') || '{}');
-
       if (modoCadastro) {
-        if (contas[email]) {
-          alert("Este email já está cadastrado.");
-        } else {
-          contas[email] = senha;
-          localStorage.setItem('contas', JSON.stringify(contas));
-          alert("Cadastro realizado com sucesso!");
-          alternarModo();
-        }
+        auth.createUserWithEmailAndPassword(email, senha)
+          .then(() => {
+            alert("Cadastro realizado com sucesso!");
+            alternarModo();
+          })
+          .catch(error => alert("Erro ao cadastrar: " + error.message));
       } else {
-        if (contas[email] && contas[email] === senha) {
-          localStorage.setItem('usuarioLogado', email);
-          window.location.href = "controle.html";
-        } else {
-          alert("Email ou senha inválidos.");
-        }
+        auth.signInWithEmailAndPassword(email, senha)
+          .then(() => {
+            localStorage.setItem('usuarioLogado', email);
+            window.location.href = "controle.html";
+          })
+          .catch(error => alert("Erro ao entrar: " + error.message));
       }
     }
   </script>
