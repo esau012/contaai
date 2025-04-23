@@ -121,6 +121,165 @@
       margin-top: 10px;
     }
   </style>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDdaYpAZJgzN0Vww9-pSSgjou7OWyuYHZI",
+      authDomain: "contaai0.firebaseapp.com",
+      projectId: "contaai0",
+      storageBucket: "contaai0.firebasestorage.app",
+      messagingSenderId: "841034053224",
+      appId: "1:841034053224:web:078496e98ef804bf79eddd",
+      measurementId: "G-ZDSFPTVCSY"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth();
+    const db = getFirestore(app);
+
+    let usuarioAtual = null;
+    let statusAtual = 'todos';
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        usuarioAtual = user.email;
+        await carregarGastos();
+      } else {
+        window.location.href = 'index.html';
+      }
+    });
+
+    async function carregarGastos() {
+      const docRef = doc(db, "gastos", usuarioAtual);
+      const docSnap = await getDoc(docRef);
+      const dados = docSnap.exists() ? docSnap.data().gastos : [];
+      dados.forEach(g => {
+        if (g.status !== 'pago') {
+          g.status = calcularStatus(g);
+        }
+      });
+      await setDoc(docRef, { gastos: dados });
+      exibirGastosFiltrados(dados);
+    }
+
+    async function adicionarGasto() {
+      const descricao = document.getElementById('descricao').value.trim();
+      const valor = parseFloat(document.getElementById('valor').value);
+      const data = document.getElementById('data').value;
+
+      if (descricao && !isNaN(valor) && data) {
+        const novoGasto = {
+          descricao,
+          valor,
+          data,
+          status: calcularStatus({ data }),
+          dataPagamento: ''
+        };
+        const docRef = doc(db, "gastos", usuarioAtual);
+        const docSnap = await getDoc(docRef);
+        const dados = docSnap.exists() ? docSnap.data().gastos : [];
+        dados.push(novoGasto);
+        await setDoc(docRef, { gastos: dados });
+        limparCampos();
+        carregarGastos();
+      } else {
+        alert('Preencha todos os campos.');
+      }
+    }
+
+    function calcularStatus(gasto) {
+      const hoje = new Date().toISOString().split('T')[0];
+      if (gasto.status === 'pago') return 'pago';
+      return gasto.data < hoje ? 'vencido' : 'pendente';
+    }
+
+    async function exibirGastosFiltrados(gastos) {
+      const tabela = document.getElementById('listaGastos');
+      tabela.innerHTML = '';
+      let filtrados = gastos;
+
+      if (statusAtual !== 'todos') {
+        filtrados = gastos.filter(g => g.status === statusAtual);
+      }
+
+      filtrados.forEach(g => {
+        const linha = tabela.insertRow();
+        linha.className = `linha-status status-${g.status}`;
+        linha.insertCell(0).innerHTML = `<strong>${g.descricao}</strong><br><small>Venc: ${g.data}</small>${g.dataPagamento ? `<br><small>Pago: ${g.dataPagamento}</small>` : ''}`;
+        linha.insertCell(1).textContent = formatarValor(g.valor);
+        linha.insertCell(2).textContent = g.status;
+        const acoes = linha.insertCell(3);
+
+        const btnPagar = document.createElement('button');
+        btnPagar.textContent = '✅ Pago';
+        btnPagar.onclick = () => marcarComoPago(g);
+
+        const btnExcluir = document.createElement('button');
+        btnExcluir.textContent = '🗑️ Excluir';
+        btnExcluir.onclick = () => excluirGasto(g);
+
+        acoes.appendChild(btnPagar);
+        acoes.appendChild(btnExcluir);
+      });
+
+      calcularTotal(filtrados);
+    }
+
+    async function marcarComoPago(gasto) {
+      const dataPagamento = prompt('Digite a data de pagamento (YYYY-MM-DD):');
+      if (!dataPagamento) return;
+      const docRef = doc(db, "gastos", usuarioAtual);
+      const docSnap = await getDoc(docRef);
+      const dados = docSnap.exists() ? docSnap.data().gastos : [];
+      const i = dados.findIndex(g => g.descricao === gasto.descricao && g.valor === gasto.valor && g.data === gasto.data);
+      if (i !== -1) {
+        dados[i].status = 'pago';
+        dados[i].dataPagamento = dataPagamento;
+        await setDoc(docRef, { gastos: dados });
+        carregarGastos();
+      }
+    }
+
+    async function excluirGasto(gasto) {
+      const docRef = doc(db, "gastos", usuarioAtual);
+      const docSnap = await getDoc(docRef);
+      let dados = docSnap.exists() ? docSnap.data().gastos : [];
+      dados = dados.filter(g => !(g.descricao === gasto.descricao && g.valor === gasto.valor && g.data === gasto.data));
+      await setDoc(docRef, { gastos: dados });
+      carregarGastos();
+    }
+
+    function calcularTotal(gastos) {
+      const total = gastos.reduce((soma, g) => soma + g.valor, 0);
+      document.getElementById('total').textContent = `Total: ${formatarValor(total)}`;
+    }
+
+    function formatarValor(valor) {
+      return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    window.filtrarPorStatus = function(status) {
+      statusAtual = status;
+      document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
+      document.querySelectorAll('.aba').forEach(aba => {
+        if (aba.textContent.toLowerCase() === status.replace('_', ' ')) {
+          aba.classList.add('ativa');
+        }
+      });
+      carregarGastos();
+    }
+
+    function limparCampos() {
+      document.getElementById('descricao').value = '';
+      document.getElementById('valor').value = '';
+      document.getElementById('data').value = '';
+    }
+
+    window.adicionarGasto = adicionarGasto;
+  </script>
 </head>
 <body>
   <div class="container">
@@ -154,131 +313,5 @@
 
     <p id="total">Total: R$ 0,00</p>
   </div>
-
-  <script>
-    const usuarioAtual = localStorage.getItem('usuarioLogado');
-    let statusAtual = 'todos';
-
-    document.addEventListener('DOMContentLoaded', carregarGastos);
-
-    function carregarGastos() {
-      if (!usuarioAtual) return;
-      const dados = JSON.parse(localStorage.getItem(usuarioAtual)) || [];
-      dados.forEach(g => {
-        if (g.status !== 'pago') {
-          g.status = calcularStatus(g);
-        }
-      });
-      localStorage.setItem(usuarioAtual, JSON.stringify(dados));
-      exibirGastosFiltrados(dados);
-    }
-
-    function adicionarGasto() {
-      const descricao = document.getElementById('descricao').value.trim();
-      const valor = parseFloat(document.getElementById('valor').value);
-      const data = document.getElementById('data').value;
-
-      if (descricao && !isNaN(valor) && data) {
-        const novoGasto = {
-          descricao,
-          valor,
-          data,
-          status: calcularStatus({ data }),
-          dataPagamento: ''
-        };
-        const gastos = JSON.parse(localStorage.getItem(usuarioAtual)) || [];
-        gastos.push(novoGasto);
-        localStorage.setItem(usuarioAtual, JSON.stringify(gastos));
-        limparCampos();
-        carregarGastos();
-      } else {
-        alert('Preencha todos os campos.');
-      }
-    }
-
-    function calcularStatus(gasto) {
-      const hoje = new Date().toISOString().split('T')[0];
-      if (gasto.status === 'pago') return 'pago';
-      return gasto.data < hoje ? 'vencido' : 'pendente';
-    }
-
-    function exibirGastosFiltrados(gastos = JSON.parse(localStorage.getItem(usuarioAtual) || '[]')) {
-      const tabela = document.getElementById('listaGastos');
-      tabela.innerHTML = '';
-      let filtrados = gastos;
-
-      if (statusAtual !== 'todos') {
-        filtrados = gastos.filter(g => g.status === statusAtual);
-      }
-
-      filtrados.forEach(g => {
-        const linha = tabela.insertRow();
-        linha.className = `linha-status status-${g.status}`;
-        linha.insertCell(0).innerHTML = `<strong>${g.descricao}</strong><br><small>Venc: ${g.data}</small>${g.dataPagamento ? `<br><small>Pago: ${g.dataPagamento}</small>` : ''}`;
-        linha.insertCell(1).textContent = formatarValor(g.valor);
-        linha.insertCell(2).textContent = g.status;
-        const acoes = linha.insertCell(3);
-
-        const btnPagar = document.createElement('button');
-        btnPagar.textContent = '✅ Pago';
-        btnPagar.onclick = () => marcarComoPago(g);
-
-        const btnExcluir = document.createElement('button');
-        btnExcluir.textContent = '🗑️ Excluir';
-        btnExcluir.onclick = () => excluirGasto(g);
-
-        acoes.appendChild(btnPagar);
-        acoes.appendChild(btnExcluir);
-      });
-
-      calcularTotal(filtrados);
-    }
-
-    function marcarComoPago(gasto) {
-      const dataPagamento = prompt('Digite a data de pagamento (YYYY-MM-DD):');
-      if (!dataPagamento) return;
-      const gastos = JSON.parse(localStorage.getItem(usuarioAtual));
-      const i = gastos.findIndex(g => g.descricao === gasto.descricao && g.valor === gasto.valor && g.data === gasto.data);
-      if (i !== -1) {
-        gastos[i].status = 'pago';
-        gastos[i].dataPagamento = dataPagamento;
-        localStorage.setItem(usuarioAtual, JSON.stringify(gastos));
-        carregarGastos();
-      }
-    }
-
-    function excluirGasto(gasto) {
-      let gastos = JSON.parse(localStorage.getItem(usuarioAtual));
-      gastos = gastos.filter(g => !(g.descricao === gasto.descricao && g.valor === gasto.valor && g.data === gasto.data));
-      localStorage.setItem(usuarioAtual, JSON.stringify(gastos));
-      carregarGastos();
-    }
-
-    function calcularTotal(gastos) {
-      const total = gastos.reduce((soma, g) => soma + g.valor, 0);
-      document.getElementById('total').textContent = `Total: ${formatarValor(total)}`;
-    }
-
-    function formatarValor(valor) {
-      return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    }
-
-    function filtrarPorStatus(status) {
-      statusAtual = status;
-      document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativa'));
-      document.querySelectorAll('.aba').forEach(aba => {
-        if (aba.textContent.toLowerCase() === status.replace('_', ' ')) {
-          aba.classList.add('ativa');
-        }
-      });
-      carregarGastos();
-    }
-
-    function limparCampos() {
-      document.getElementById('descricao').value = '';
-      document.getElementById('valor').value = '';
-      document.getElementById('data').value = '';
-    }
-  </script>
 </body>
 </html>
